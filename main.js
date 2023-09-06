@@ -1,4 +1,3 @@
-let APP_ID = 'c94610628ba94ba999f46be3736384d8';
 
 // token is used only in production, so it will be null for dev.
 let token = null;

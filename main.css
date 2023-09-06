@@ -74,8 +74,8 @@
 
 @media screen and (max-width: 600px) {
   .smallFrame {
-    height: 80px;
-    width: 120px;
+    height: 100px;
+    width: 180px;
   }
 
   .control-container img {
