@@ -10,6 +10,14 @@ let client;
 // Channel that two users will join
 let channel;
 
+let queryString = window.location.search;
+let urlParams = new URLSearchParams(queryString);
+let roomId = urlParams.get('room');
+
+if (!roomId) {
+  window.location = 'lobby.html';
+}
+
 let localStream;
 let remoteStream;
 let peerConnection;
@@ -22,12 +30,19 @@ const servers = {
   ],
 };
 
+let constraints = {
+  video: {
+    width: { min: 640, ideal: 1920, max: 1920 },
+    height: { min: 480, ideal: 1080, max: 1080 },
+  },
+  audio: true,
+};
+
 let init = async () => {
   client = await AgoraRTM.createInstance(APP_ID);
   await client.login({ uid, token });
 
-  // index.html?room=231289
-  channel = client.createChannel('main'); // TODO: replace 'main' with roomID
+  channel = client.createChannel(roomId);
   await channel.join();
 
   // whenever user calls join method we can trigger 'MemberJoined' event listener.
@@ -44,10 +59,7 @@ let init = async () => {
   });
 
   // This will get your media data
-  localStream = await navigator.mediaDevices.getUserMedia({
-    video: true,
-    audio: false,
-  });
+  localStream = await navigator.mediaDevices.getUserMedia(constraints);
 
   // user-1 will get his media stream from here
   document.getElementById('user-1').srcObject = localStream;
@@ -62,6 +74,7 @@ const handleMemberJoined = async (memberId) => {
 
 const handleUserLeft = async (memberId) => {
   document.getElementById('user-2').style.display = 'none';
+  document.getElementById('user-1').classList.remove('smallFrame');
 };
 
 const handleMessageFromPeer = async (message, memberId) => {
@@ -106,6 +119,8 @@ let createPeerConnection = async (memberId) => {
 
   document.getElementById('user-2').srcObject = remoteStream;
   document.getElementById('user-2').style.display = 'block';
+
+  document.getElementById('user-1').classList.add('smallFrame');
 
   // If we refresh too fast local stream might not get created,
   // so I've added this extra check!
@@ -175,7 +190,38 @@ let leaveChannel = async () => {
   await client.logout();
 };
 
+let toggleCamera = async () => {
+  let videoTrack = localStream
+    .getTracks()
+    .find((track) => track.kind === 'video');
+
+  if (videoTrack.enabled) {
+    videoTrack.enabled = false;
+    document.getElementById('camera-btn').style.backgroundColor =
+      'rgb(255, 80, 80)';
+  } else {
+    videoTrack.enabled = true;
+    document.getElementById('camera-btn').style.backgroundColor = '#b366f9e6';
+  }
+};
+let toggleMic = async () => {
+  let audioTrack = localStream
+    .getTracks()
+    .find((track) => track.kind === 'audio');
+  console.log({ audioTrack });
+  if (audioTrack?.enabled) {
+    audioTrack.enabled = false;
+    document.getElementById('mic-btn').style.backgroundColor =
+      'rgb(255, 80, 80)';
+  } else {
+    audioTrack.enabled = true;
+    document.getElementById('mic-btn').style.backgroundColor = '#b366f9e6';
+  }
+};
+
 window.addEventListener('beforeunload', leaveChannel);
+document.getElementById('camera-btn').addEventListener('click', toggleCamera);
+document.getElementById('mic-btn').addEventListener('click', toggleMic);
 
 try {
   init();
