@@ -32,6 +32,7 @@ let init = async () => {
 
   // whenever user calls join method we can trigger 'MemberJoined' event listener.
   channel.on('MemberJoined', handleMemberJoined);
+  channel.on('MemberLeft', handleUserLeft);
 
   // triggered when we recieve message from peer.
   client.on('MessageFromPeer', (message, memberId) => {
@@ -59,21 +60,52 @@ const handleMemberJoined = async (memberId) => {
   createOffer(memberId);
 };
 
+const handleUserLeft = async (memberId) => {
+  document.getElementById('user-2').style.display = 'none';
+};
+
 const handleMessageFromPeer = async (message, memberId) => {
   message = JSON.parse(message.text);
 
-  console.log('message', message);
+  if (message.type === 'offer') {
+    createAnswer(memberId, message.offer);
+  }
+
+  if (message.type === 'answer') {
+    addAnswer(message.answer);
+  }
+
+  if (message.type === 'candidate') {
+    if (peerConnection) {
+      peerConnection.addIceCandidate(message.candidate);
+    }
+  }
 };
 
 /**
  * creates offer for remote user.
  */
 let createOffer = async (memberId) => {
+  await createPeerConnection(memberId);
+  // The createOffer() method of the RTCPeerConnection interface initiates the creation of
+  // an SDP offer for the purpose of starting a new WebRTC connection to a remote peer.
+  // SDP - Session Description Protocol
+  let offer = await peerConnection.createOffer();
+  await peerConnection.setLocalDescription(offer);
+
+  client.sendMessageToPeer(
+    { text: JSON.stringify({ type: 'offer', offer: offer }) },
+    memberId
+  );
+};
+
+let createPeerConnection = async (memberId) => {
   // creates a new peer connection
   peerConnection = new RTCPeerConnection(servers);
   remoteStream = new MediaStream();
 
   document.getElementById('user-2').srcObject = remoteStream;
+  document.getElementById('user-2').style.display = 'block';
 
   // If we refresh too fast local stream might not get created,
   // so I've added this extra check!
@@ -84,7 +116,7 @@ let createOffer = async (memberId) => {
     });
     document.getElementById('user-1').srcObject = localStream;
   }
-  
+
   // add tracks to peerConnection
   localStream.getTracks().forEach((track) => {
     peerConnection.addTrack(track, localStream);
@@ -108,17 +140,45 @@ let createOffer = async (memberId) => {
         memberId
       );
   };
+};
 
-  // The createOffer() method of the RTCPeerConnection interface initiates the creation of
-  // an SDP offer for the purpose of starting a new WebRTC connection to a remote peer.
-  // SDP - Session Description Protocol
-  let offer = await peerConnection.createOffer();
-  await peerConnection.setLocalDescription(offer);
+// peer will create answer and send back to us
+let createAnswer = async (memberId, offer) => {
+  await createPeerConnection(memberId);
+
+  await peerConnection.setRemoteDescription(offer);
+
+  // for peer1 local desc is offer and remote desc is answer
+  // but for peer2 (recieving peer) it is opposite.
+  let answer = await peerConnection.createAnswer();
+  await peerConnection.setLocalDescription(answer);
 
   client.sendMessageToPeer(
-    { text: JSON.stringify({ type: 'offer', offer: offer }) },
+    { text: JSON.stringify({ type: 'answer', answer: answer }) },
     memberId
   );
 };
 
-init();
+/**
+ *
+ * @param {*} answer
+ * peer1 will set the remote description.
+ */
+let addAnswer = async (answer) => {
+  if (!peerConnection.currentRemoteDescription) {
+    peerConnection.setRemoteDescription(answer);
+  }
+};
+
+let leaveChannel = async () => {
+  await channel.leave();
+  await client.logout();
+};
+
+window.addEventListener('beforeunload', leaveChannel);
+
+try {
+  init();
+} catch (err) {
+  console.error('Error while init(): \n', err);
+}
