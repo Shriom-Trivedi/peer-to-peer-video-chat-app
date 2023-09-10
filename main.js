@@ -124,10 +124,7 @@ let createPeerConnection = async (memberId) => {
   // If we refresh too fast local stream might not get created,
   // so I've added this extra check!
   if (!localStream) {
-    localStream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: false,
-    });
+    localStream = await navigator.mediaDevices.getUserMedia(constraints);
     document.getElementById('user-1').srcObject = localStream;
   }
 
